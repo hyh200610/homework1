@@ -1,43 +1,41 @@
 # 小助手网页版
 
-一个基于 FastAPI 和 Vue 的多功能小助手应用，包含商品比价、武器刮刮乐和抽卡抽奖等功能。
+一个基于 FastAPI 和 Vue 的多功能小助手应用，包含武器刮刮乐和抽卡抽奖等功能。
 
-## 功能特性
-
-### 🛒 商品比价
-- 支持两种商品的单价对比
-- 自动计算最优购买方案
-- 支持小数精度计算
+## 🌟 功能特性
 
 ### 🎮 武器刮刮乐
 - 15种不同稀有度的武器卡片
 - 包含剑、弓、枪三种类型
 - 1-5星稀有度系统
+- 单卡片刮刮乐模式
+- 新版四卡片刮刮乐模式（一次四张，点击揭开）
 - 已刮卡片自动记录，不重复
 
 ### 🎰 抽卡抽奖
-- 支持多抽功能
+- 支持多抽功能（1-100抽）
 - 带有保底机制（10抽保底五星，80抽保底六星）
 - 支持UP角色概率提升
 - 用户保底信息持久化存储
+- 抽奖结果统计展示
 
 ### 👤 用户系统
 - 用户注册/登录功能
 - 保底计数自动保存
 - 数据存储于 JSON 文件
+- 实时保底状态查询
 
-## 项目结构
+## 📁 项目结构
 
 ```
-tri/
-├── main.py          # FastAPI 主应用
-├── bijia.py         # 比价模块
-├── chouka.py        # 抽奖模块
-├── weapon.py        # 武器刮刮乐模块
-├── usrinf.py        # 用户信息管理
-├── daily.py         # 每日商店模块
-├── usrinf.json      # 用户数据存储
-└── frontend/        # Vue 前端
+homework1/
+├── main_api.py           # 新版纯API后端（推荐使用）
+├── chouka.py             # 抽奖模块
+├── usrinf.py             # 用户信息管理
+├── weapon.py             # 武器系统模块
+├── usrinf.json           # 用户数据存储
+├── requirements.txt      # Python依赖清单
+└── frontend/             # Vue 前端项目
     ├── src/
     │   ├── router/
     │   ├── App.vue
@@ -45,70 +43,74 @@ tri/
     └── package.json
 ```
 
-## 技术栈
+## 🛠️ 技术栈
 
 - **后端**: Python 3.x + FastAPI + Uvicorn
 - **前端**: Vue 3 + Vite
 - **数据存储**: JSON 文件
+- **架构模式**: 前后端完全分离
 
-## 快速开始
+## 🚀 快速开始
 
-### 安装依赖
+### 手动启动
 
 ```bash
 # 安装后端依赖
-pip install fastapi uvicorn numpy
+pip install -r requirements.txt
 
-# 安装前端依赖
+# 启动后端服务 (端口 8888)
+python main_api.py
+
+# 安装前端依赖（首次运行）
 cd frontend
 npm install
-```
-
-### 启动服务
-
-```bash
-# 启动后端服务 (端口 8888)
-python main.py
 
 # 启动前端服务 (端口 5173)
-cd frontend
 npm run dev
 ```
 
 ### 访问地址
 
-- 后端首页: http://localhost:8888
 - 前端页面: http://localhost:5173
+- 后端API文档: http://localhost:8888/docs
+- 后端健康检查: http://localhost:8888/health
 
-## API 接口
+## 📡 API 接口
 
-### 比价接口
+### 基础接口
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/bijia` | 比价表单页面 |
-| POST | `/bijia_calc` | 计算比价结果 |
+| GET | `/health` | 健康检查 |
+| GET | `/docs` | API文档自动生成 |
 
-### 用户接口
+### 用户管理接口
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/login` | 用户登录 |
-| POST | `/register` | 用户注册 |
-| GET | `/baodi/{username}` | 查询保底信息 |
-
-### 刮刮乐接口
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/scratch/status` | 获取刮刮乐状态 |
-| POST | `/scratch/play` | 刮开一张卡片 |
-| POST | `/scratch/reset` | 重置刮刮乐 |
+| POST | `/api/user/login` | 用户登录 |
+| POST | `/api/user/register` | 用户注册 |
+| GET | `/api/user/baodi/{username}` | 查询用户保底信息 |
 
 ### 抽奖接口
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/chouka` | 抽奖表单页面 |
-| POST | `/chouka_do` | 执行抽奖 |
+| POST | `/api/chouka/do` | 执行抽奖，支持指定用户 |
 
-## 武器列表
+### 武器刮刮乐（单卡片模式）
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/scratch/status` | 获取刮刮乐状态 |
+| POST | `/api/scratch/play` | 随机刮开一张卡片 |
+| POST | `/api/scratch/reset` | 重置所有刮刮乐卡片 |
+
+### 武器刮刮乐（四卡片模式）
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/scratch/status` | 获取刮刮乐状态 |
+| POST | `/api/scratch/new/init` | 初始化四个刮刮乐卡片 |
+| POST | `/api/scratch/new/reveal/{card_id}` | 揭开指定ID的卡片 |
+| POST | `/api/scratch/new/reset` | 完全重置刮刮乐系统 |
+
+## 🎁 武器列表
 
 | 武器名称 | 类型 | 稀有度 |
 |----------|------|--------|
@@ -128,7 +130,7 @@ npm run dev
 | 雷霆枪 | 枪 | 4星 |
 | 破魔枪 | 枪 | 5星 |
 
-## 抽奖概率
+## 🎯 抽奖概率
 
 - **6星**: 0.8% (65抽后概率提升)
 - **5星**: 7.2% (65抽后概率提升)
@@ -137,7 +139,25 @@ npm run dev
 **保底机制**:
 - 每10抽必出五星
 - 每80抽必出六星
+- 大保底机制（90抽必出UP角色）
 
-## License
+## 📝 更新日志
+
+### v2.0.0 (最新版)
+- ✨ 新增四卡片刮刮乐模式
+- 🎨 前端UI全面升级
+- 🔧 重构后端为纯API模式
+- 🗑️ 移除商品比价功能
+- 📱 响应式布局优化
+- 📊 新增抽奖统计功能
+
+### v1.0.0
+- 🎮 初始版本发布
+- 🛒 商品比价功能
+- 🎰 抽卡抽奖功能
+- 🔧 武器刮刮乐功能
+- 👤 用户系统
+
+## 📄 License
 
 MIT

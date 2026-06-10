@@ -1,8 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 
-// 后端API地址
-const API_BASE = 'http://localhost:8888'
+// 后端API地址 - 适配main_api.py
+const API_BASE = 'http://localhost:8888/api'
 
 // 用户状态
 const currentUser = ref(null)
@@ -11,22 +11,14 @@ const loginForm = ref({
   password: ''
 })
 
-// 比价功能相关状态
-const bijiaForm = ref({
-  a_name: '',
-  a_price: '',
-  a_per: '',
-  b_name: '',
-  b_price: '',
-  b_per: ''
-})
-const bijiaResult = ref('')
+
 
 // 抽奖功能相关状态
 const choukaForm = ref({
   times: 10
 })
 const choukaResult = ref([])
+const choukaStats = ref(null)
 
 // 保底信息
 const baodiInfo = ref({
@@ -38,7 +30,8 @@ const baodiInfo = ref({
 const scratchStatus = ref({
   total_cards: 0,
   remaining_cards: 0,
-  scratched_count: 0
+  scratched_count: 0,
+  current_cards_count: 0
 })
 const scratchResult = ref(null)
 const scratchMessage = ref('')
@@ -50,30 +43,7 @@ const currentPage = ref('home')
 const loginMessage = ref('')
 const isLoginSuccess = ref(false)
 
-// 比价计算函数
-async function calculateBijia() {
-  try {
-    const formData = new FormData()
-    Object.keys(bijiaForm.value).forEach(key => {
-      formData.append(key, bijiaForm.value[key])
-    })
-    
-    const response = await fetch(`${API_BASE}/bijia_calc`, {
-      method: 'POST',
-      body: formData
-    })
-    
-    if (response.ok) {
-      const html = await response.text()
-      // 提取文本内容，去除HTML标签
-      bijiaResult.value = html.replace(/<[^>]*>/g, '')
-    } else {
-      bijiaResult.value = '计算失败，请检查输入'
-    }
-  } catch (error) {
-    bijiaResult.value = '网络错误，请检查后端服务是否启动'
-  }
-}
+
 
 // 抽奖函数
 async function doChouka() {
@@ -86,35 +56,43 @@ async function doChouka() {
       formData.append('username', currentUser.value.username)
     }
     
-    const response = await fetch(`${API_BASE}/chouka_do`, {
+    const response = await fetch(`${API_BASE}/chouka/do`, {
       method: 'POST',
       body: formData
     })
     
-    if (response.ok) {
-      const html = await response.text()
-      // 解析HTML结果
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(html, 'text/html')
-      const results = Array.from(doc.querySelectorAll('div')).map(div => div.textContent)
-      choukaResult.value = results
+    const result = await response.json()
+    
+    if (result.success) {
+      choukaResult.value = result.data.results
+      choukaStats.value = result.data.statistics
+      loginMessage.value = result.message
       
-      // 抽卡后刷新保底信息
-      if (currentUser.value) {
-        await loadBaodiInfo()
+      // 更新保底信息
+      if (result.data.baodi_info) {
+        baodiInfo.value = {
+          baodi: result.data.baodi_info.current_baodi,
+          dabaodi: result.data.baodi_info.current_dabaodi
+        }
       }
     } else {
-      choukaResult.value = ['抽奖失败，请检查输入']
+      loginMessage.value = result.message
+      choukaResult.value = []
+      choukaStats.value = null
     }
   } catch (error) {
-    choukaResult.value = ['网络错误，请检查后端服务是否启动']
+    loginMessage.value = '网络错误，请检查后端服务是否启动'
+    choukaResult.value = []
+    choukaStats.value = null
   }
 }
 
 // 清空结果函数
 function clearResults() {
-  bijiaResult.value = ''
   choukaResult.value = []
+  choukaStats.value = null
+  scratchResult.value = null
+  scratchMessage.value = ''
 }
 
 // 用户登录
@@ -130,7 +108,7 @@ async function doLogin() {
     formData.append('username', loginForm.value.username)
     formData.append('password', loginForm.value.password)
     
-    const response = await fetch(`${API_BASE}/login`, {
+    const response = await fetch(`${API_BASE}/user/login`, {
       method: 'POST',
       body: formData
     })
@@ -138,10 +116,17 @@ async function doLogin() {
     const result = await response.json()
     
     if (result.success) {
-      currentUser.value = result.user
+      currentUser.value = result.data.user
       loginMessage.value = result.message
       isLoginSuccess.value = true
-      await loadBaodiInfo()
+      
+      // 更新保底信息
+      if (result.data.user) {
+        baodiInfo.value = {
+          baodi: result.data.user.baodi,
+          dabaodi: result.data.user.dabaodi
+        }
+      }
       
       // 清空登录表单
       loginForm.value.username = ''
@@ -175,7 +160,7 @@ async function doRegister() {
     formData.append('username', loginForm.value.username)
     formData.append('password', loginForm.value.password)
     
-    const response = await fetch(`${API_BASE}/register`, {
+    const response = await fetch(`${API_BASE}/user/register`, {
       method: 'POST',
       body: formData
     })
@@ -183,10 +168,17 @@ async function doRegister() {
     const result = await response.json()
     
     if (result.success) {
-      currentUser.value = result.user
+      currentUser.value = result.data.user
       loginMessage.value = result.message
       isLoginSuccess.value = true
-      await loadBaodiInfo()
+      
+      // 更新保底信息
+      if (result.data.user) {
+        baodiInfo.value = {
+          baodi: result.data.user.baodi,
+          dabaodi: result.data.user.dabaodi
+        }
+      }
       
       // 清空登录表单
       loginForm.value.username = ''
@@ -212,6 +204,7 @@ function logout() {
   currentUser.value = null
   baodiInfo.value = { baodi: 0, dabaodi: 0 }
   currentPage.value = 'home'
+  clearResults()
 }
 
 // 加载保底信息
@@ -219,13 +212,13 @@ async function loadBaodiInfo() {
   if (!currentUser.value) return
   
   try {
-    const response = await fetch(`${API_BASE}/baodi/${currentUser.value.username}`)
+    const response = await fetch(`${API_BASE}/user/baodi/${currentUser.value.username}`)
     const result = await response.json()
     
     if (result.success) {
       baodiInfo.value = {
-        baodi: result.baodi,
-        dabaodi: result.dabaodi
+        baodi: result.data.baodi,
+        dabaodi: result.data.dabaodi
       }
     }
   } catch (error) {
@@ -239,11 +232,7 @@ async function loadScratchStatus() {
     const response = await fetch(`${API_BASE}/scratch/status`)
     const result = await response.json()
     if (result.success) {
-      scratchStatus.value = {
-        total_cards: result.total_cards,
-        remaining_cards: result.remaining_cards,
-        scratched_count: result.scratched_count
-      }
+      scratchStatus.value = result.data
     }
   } catch (error) {
     console.error('获取刮刮乐状态失败:', error)
@@ -259,9 +248,9 @@ async function doScratch() {
     const result = await response.json()
     
     if (result.success) {
-      scratchResult.value = result.prize
+      scratchResult.value = result.data.prize
       scratchMessage.value = result.message
-      scratchStatus.value.remaining_cards = result.remaining_cards
+      scratchStatus.value.remaining_cards = result.data.remaining_cards
       scratchStatus.value.scratched_count++
     } else {
       scratchMessage.value = result.message
@@ -295,7 +284,8 @@ async function resetScratch() {
 
 // 组件挂载时检查用户状态
 onMounted(() => {
-  // 这里可以添加自动登录逻辑，比如从localStorage读取token等
+  // 加载初始状态
+  loadScratchStatus()
 })
 </script>
 
@@ -312,7 +302,6 @@ onMounted(() => {
       </div>
       <nav>
         <button @click="currentPage = 'home'; clearResults()">首页</button>
-        <button @click="currentPage = 'bijia'; clearResults()">商品比价</button>
         <button @click="currentPage = 'chouka'; clearResults()">抽奖</button>
         <button @click="currentPage = 'baodi'; clearResults()">保底查询</button>
         <button @click="currentPage = 'scratch'; clearResults(); loadScratchStatus()">武器刮刮乐</button>
@@ -361,32 +350,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 比价页面 -->
-      <div v-if="currentPage === 'bijia'" class="bijia-page">
-        <h2>商品比价</h2>
-        <form @submit.prevent="calculateBijia">
-          <div class="form-group">
-            <h3>商品1</h3>
-            <input v-model="bijiaForm.a_name" placeholder="商品名称" required>
-            <input v-model="bijiaForm.a_price" type="number" step="0.01" placeholder="总价" required>
-            <input v-model="bijiaForm.a_per" type="number" step="0.01" placeholder="单位数量" required>
-          </div>
-          
-          <div class="form-group">
-            <h3>商品2</h3>
-            <input v-model="bijiaForm.b_name" placeholder="商品名称" required>
-            <input v-model="bijiaForm.b_price" type="number" step="0.01" placeholder="总价" required>
-            <input v-model="bijiaForm.b_per" type="number" step="0.01" placeholder="单位数量" required>
-          </div>
-          
-          <button type="submit">计算</button>
-        </form>
-        
-        <div v-if="bijiaResult" class="result">
-          <h3>比价结果：</h3>
-          <p>{{ bijiaResult }}</p>
-        </div>
-      </div>
+      
 
       <!-- 抽奖页面 -->
       <div v-if="currentPage === 'chouka'" class="chouka-page">
@@ -401,6 +365,28 @@ onMounted(() => {
           </div>
           <button type="submit">开始抽奖</button>
         </form>
+        
+        <!-- 抽奖统计 -->
+        <div v-if="choukaStats" class="chouka-stats">
+          <div class="stats-grid">
+            <div class="stat-card star-6">
+              <div class="stat-number">{{ choukaStats.star_6 }}</div>
+              <div class="stat-label">6星物品</div>
+            </div>
+            <div class="stat-card star-5">
+              <div class="stat-number">{{ choukaStats.star_5 }}</div>
+              <div class="stat-label">5星物品</div>
+            </div>
+            <div class="stat-card star-4">
+              <div class="stat-number">{{ choukaStats.star_4 }}</div>
+              <div class="stat-label">4星物品</div>
+            </div>
+            <div class="stat-card total">
+              <div class="stat-number">{{ choukaStats.total }}</div>
+              <div class="stat-label">总抽奖次数</div>
+            </div>
+          </div>
+        </div>
         
         <div v-if="choukaResult.length > 0" class="result">
           <h3>抽奖结果：</h3>
@@ -789,6 +775,53 @@ onMounted(() => {
   margin-top: 20px;
 }
 
+
+
+/* 抽奖统计样式 */
+.chouka-stats {
+  margin: 20px 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 15px;
+}
+
+.stat-card {
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  color: white;
+}
+
+.stat-card.star-6 {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+}
+
+.stat-card.star-5 {
+  background: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%);
+}
+
+.stat-card.star-4 {
+  background: linear-gradient(135deg, #48dbfb 0%, #0abde3 100%);
+}
+
+.stat-card.total {
+  background: linear-gradient(135deg, #485460 0%, #2c3e50 100%);
+}
+
+.stat-number {
+  font-size: 28px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.stat-label {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
 /* 响应式调整 */
 @media (max-width: 768px) {
   .user-info {
@@ -805,7 +838,10 @@ onMounted(() => {
   .button-group {
     flex-direction: column;
   }
+  
+
 }
+
 .app {
   max-width: 800px;
   margin: 0 auto;
