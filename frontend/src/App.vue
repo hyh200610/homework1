@@ -448,10 +448,13 @@ onMounted(() => {
             </div>
             <div class="scratch-prize" v-else>
               <div class="prize-rarity" :class="`rarity-${scratchResult.rarity}`">
-                {{ '*'.repeat(scratchResult.rarity) }}
+                {{ '*'.repeat(scratchResult.star || scratchResult.rarity) }}
               </div>
               <div class="prize-name">{{ scratchResult.name }}</div>
               <div class="prize-type">{{ scratchResult.weapon_type }}</div>
+              <div v-if="scratchResult.image_id" class="prize-image">
+                <img :src="`https://example.com/weapons/${scratchResult.image_id}.png`" alt="武器图片" style="width: 80px; height: 80px; object-fit: contain;">
+              </div>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from chouka import chouka
-from weapon import all_weapons
+from weapon import AllWeaponManager
 import uvicorn
 import json
 import os
@@ -21,27 +21,17 @@ app.add_middleware(
 )
 
 # 初始化武器系统
-# 创建武器字典（名称: {类型, 稀有度}）
-weapons_data = {
-    "铁剑": {"type": "剑", "rarity": "1"},
-    "钢剑": {"type": "剑", "rarity": "2"},
-    "精钢剑": {"type": "剑", "rarity": "3"},
-    "烈焰剑": {"type": "剑", "rarity": "4"},
-    "神圣之剑": {"type": "剑", "rarity": "5"},
-    "木弓": {"type": "弓", "rarity": "1"},
-    "猎弓": {"type": "弓", "rarity": "2"},
-    "长弓": {"type": "弓", "rarity": "3"},
-    "精灵弓": {"type": "弓", "rarity": "4"},
-    "星辰弓": {"type": "弓", "rarity": "5"},
-    "短枪": {"type": "枪", "rarity": "1"},
-    "长枪": {"type": "枪", "rarity": "2"},
-    "龙枪": {"type": "枪", "rarity": "3"},
-    "雷霆枪": {"type": "枪", "rarity": "4"},
-    "破魔枪": {"type": "枪", "rarity": "5"},
-}
+weapon_manager = AllWeaponManager()
 
-# 创建武器实例
-weapon_system = all_weapons(weapons_data)
+# 构建武器数据映射（用于兼容旧接口）
+weapons_data = {}
+for weapon in weapon_manager.all_weapon_list:
+    weapons_data[weapon.name] = {
+        "type": weapon.type,
+        "rarity": str(weapon.star),
+        "star": weapon.star,
+        "image_id": weapon.image_id
+    }
 
 # 存储当前四个刮刮乐卡片
 current_cards = []
@@ -253,7 +243,8 @@ def chouka_do(times: int = Form(...), username: str = Form(None)):
 def get_scratch_status():
     """获取刮刮乐系统状态"""
     total_cards = len(weapons_data)
-    used_cards = len(weapon_system.static_used)
+    # 计算所有池子已使用的武器总数
+    used_cards = sum(len(pool.static_used) for pool in weapon_manager.pools.values())
     remaining_cards = total_cards - used_cards
     
     return success_response({
@@ -268,24 +259,27 @@ def scratch_play():
     """随机刮开一张卡片"""
     try:
         # 检查是否还有剩余卡片
-        remaining = len(weapons_data) - len(weapon_system.static_used)
+        remaining = len(weapons_data) - sum(len(pool.static_used) for pool in weapon_manager.pools.values())
         if remaining <= 0:
             return error_response(400, "没有剩余卡片了！")
         
-        # 使用 get_r_weapon 获取随机武器
-        weapon_name = weapon_system.get_r_weapon()
-        weapon_info = weapons_data[weapon_name]
+        # 使用 random_get_all_type_weapon 获取随机武器
+        weapon = weapon_manager.random_get_all_type_weapon()
+        if not weapon:
+            return error_response(400, "没有剩余卡片了！")
         
-        remaining_after = len(weapons_data) - len(weapon_system.static_used)
+        remaining_after = len(weapons_data) - sum(len(pool.static_used) for pool in weapon_manager.pools.values())
         
         return success_response({
             "prize": {
-                "name": weapon_name,
-                "weapon_type": weapon_info["type"],
-                "rarity": weapon_info["rarity"]
+                "name": weapon.name,
+                "weapon_type": weapon.type,
+                "rarity": str(weapon.star),
+                "star": weapon.star,
+                "image_id": weapon.image_id
             },
             "remaining_cards": remaining_after
-        }, f"恭喜获得: {weapon_name}")
+        }, f"恭喜获得: {weapon.name}")
         
     except Exception as e:
         return error_response(500, f"刮卡片失败: {str(e)}")
@@ -294,8 +288,7 @@ def scratch_play():
 def scratch_reset():
     """重置所有刮刮乐卡片"""
     try:
-        global weapon_system
-        weapon_system.reset()
+        weapon_manager.reset_all_pool()
         
         return success_response({
             "total_cards": len(weapons_data)
@@ -309,23 +302,26 @@ def scratch_reset():
 def init_new_scratch():
     """初始化四个刮刮乐卡片"""
     try:
-        global weapon_system, current_cards
+        global current_cards
         
         # 检查是否还有足够的卡片
-        remaining = len(weapons_data) - len(weapon_system.static_used)
+        remaining = len(weapons_data) - sum(len(pool.static_used) for pool in weapon_manager.pools.values())
         if remaining < 4:
             return error_response(400, f"剩余卡片不足4张，仅剩{remaining}张！")
         
         # 生成四个随机武器
         current_cards = []
         for _ in range(4):
-            weapon_name = weapon_system.get_r_weapon()
-            weapon_info = weapons_data[weapon_name]
+            weapon = weapon_manager.random_get_all_type_weapon()
+            if not weapon:
+                return error_response(400, "生成卡片失败，没有剩余卡片了！")
             current_cards.append({
                 "id": _ + 1,
-                "name": weapon_name,
-                "weapon_type": weapon_info["type"],
-                "rarity": weapon_info["rarity"],
+                "name": weapon.name,
+                "weapon_type": weapon.type,
+                "rarity": str(weapon.star),
+                "star": weapon.star,
+                "image_id": weapon.image_id,
                 "revealed": False
             })
         
@@ -366,8 +362,8 @@ def reveal_card(card_id: int):
 def reset_new_scratch():
     """完全重置刮刮乐系统"""
     try:
-        global weapon_system, current_cards
-        weapon_system.reset()
+        global current_cards
+        weapon_manager.reset_all_pool()
         current_cards = []
         
         return success_response({
