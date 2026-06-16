@@ -1,27 +1,7 @@
 {
     "admin": {
         "password": "123456",
-        "baodi": 5,
-        "dabaodi": 17
-    },
-    "卢小璇": {
-        "password": "123456",
-        "baodi": 6,
-        "dabaodi": 17
-    },
-    "卢璇": {
-        "password": "123456",
-        "baodi": 1,
-        "dabaodi": 1
-    },
-    "admin1": {
-        "password": "123456",
-        "baodi": 0,
-        "dabaodi": 0
-    },
-    "123": {
-        "password": "1234444",
-        "baodi": 0,
-        "dabaodi": 0
+        "baodi": 7,
+        "dabaodi": 9
     }
 }
