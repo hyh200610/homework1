@@ -26,18 +26,27 @@ const baodiInfo = ref({
   dabaodi: 0
 })
 
-// 刮刮乐状态
+//<!-- 刮刮乐状态 -->
 const scratchStatus = ref({
   total_cards: 0,
   remaining_cards: 0,
   scratched_count: 0,
   current_cards_count: 0
 })
-const scratchResult = ref(null)
 const scratchMessage = ref('')
+const scratchSlots = ref([null, null, null, null])  // 四个刮刮乐槽位
+const allScratched = ref(false)  // 是否全部刮完
 
 // 当前页面状态
 const currentPage = ref('home')
+
+// 导航项目
+const navItems = ref([
+  { name: '首页', icon: '🏠', page: 'home' },
+  { name: '抽奖', icon: '🎰', page: 'chouka' },
+  { name: '保底查询', icon: '📊', page: 'baodi' },
+  { name: '武器刮刮乐', icon: '🎁', page: 'scratch', onClick: loadScratchStatus }
+])
 
 // 登录状态
 const loginMessage = ref('')
@@ -47,6 +56,8 @@ const isLoginSuccess = ref(false)
 
 // 抽奖函数
 async function doChouka() {
+  console.log('🎰 开始抽奖，次数:', choukaForm.value.times)
+  
   try {
     const formData = new FormData()
     formData.append('times', choukaForm.value.times)
@@ -62,6 +73,7 @@ async function doChouka() {
     })
     
     const result = await response.json()
+    console.log('📡 抽奖响应:', result)
     
     if (result.success) {
       choukaResult.value = result.data.results
@@ -91,13 +103,15 @@ async function doChouka() {
 function clearResults() {
   choukaResult.value = []
   choukaStats.value = null
-  scratchResult.value = null
   scratchMessage.value = ''
 }
 
 // 用户登录
 async function doLogin() {
+  console.log('🔐 尝试登录:', loginForm.value.username)
+  
   if (!loginForm.value.username || !loginForm.value.password) {
+    console.log('❌ 登录失败：用户名或密码为空')
     loginMessage.value = '请输入用户名和密码'
     isLoginSuccess.value = false
     return
@@ -114,6 +128,7 @@ async function doLogin() {
     })
     
     const result = await response.json()
+    console.log('📡 登录响应:', result)
     
     if (result.success) {
       currentUser.value = result.data.user
@@ -228,58 +243,83 @@ async function loadBaodiInfo() {
 
 // 获取刮刮乐状态
 async function loadScratchStatus() {
+  console.log('🎁 加载刮刮乐状态...')
   try {
     const response = await fetch(`${API_BASE}/scratch/status`)
     const result = await response.json()
+    console.log('📡 刮刮乐状态:', result)
     if (result.success) {
       scratchStatus.value = result.data
     }
   } catch (error) {
-    console.error('获取刮刮乐状态失败:', error)
+    console.error('❌ 获取刮刮乐状态失败:', error)
   }
 }
 
-// 刮开卡片
-async function doScratch() {
+// 刮开指定槽位的卡片
+async function doScratch(slotIndex) {
+  console.log('🎁 刮开槽位:', slotIndex + 1)
+  
+  // 如果该槽位已刮开或全部已刮完，则不执行
+  if (scratchSlots.value[slotIndex] !== null || allScratched.value) {
+    console.log('⏭️ 槽位已刮开或全部已刮完')
+    return
+  }
+  
   try {
     const response = await fetch(`${API_BASE}/scratch/play`, {
       method: 'POST'
     })
     const result = await response.json()
+    console.log('📡 刮卡响应:', result)
     
     if (result.success) {
-      scratchResult.value = result.data.prize
-      scratchMessage.value = result.message
+      scratchSlots.value[slotIndex] = result.data.prize
       scratchStatus.value.remaining_cards = result.data.remaining_cards
       scratchStatus.value.scratched_count++
-    } else {
-      scratchMessage.value = result.message
-      scratchResult.value = null
+      
+      // 检查是否全部刮完
+      const allDone = scratchSlots.value.every(slot => slot !== null)
+      allScratched.value = allDone
+      
+      console.log('✨ 获得武器:', result.data.prize?.name, '-', result.data.prize?.weapon_type)
     }
   } catch (error) {
-    scratchMessage.value = '刮卡失败，请检查后端服务'
-    scratchResult.value = null
+    console.error('❌ 刮卡失败:', error)
   }
 }
 
 // 重置刮刮乐
 async function resetScratch() {
+  console.log('🔄 重置刮刮乐...')
   try {
     const response = await fetch(`${API_BASE}/scratch/reset`, {
       method: 'POST'
     })
     const result = await response.json()
+    console.log('📡 重置响应:', result)
     
     if (result.success) {
       scratchMessage.value = result.message
       await loadScratchStatus()
-      scratchResult.value = null
+      scratchSlots.value = [null, null, null, null]  // 清空四个槽位
+      allScratched.value = false  // 重置全部刮完状态
     } else {
       scratchMessage.value = result.message
     }
   } catch (error) {
+    console.error('❌ 重置失败:', error)
     scratchMessage.value = '重置失败，请检查后端服务'
   }
+}
+
+// 获取稀有度样式类
+function getRarityClass(star) {
+  const starNum = parseInt(star) || 4
+  if (starNum >= 6) return 'rarity-legendary'
+  if (starNum === 5) return 'rarity-epic'
+  if (starNum === 4) return 'rarity-rare'
+  return 'rarity-common'
 }
 
 // 组件挂载时检查用户状态
@@ -290,25 +330,33 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="app">
-    <header>
-      <h1>小助手网页版</h1>
-      <div class="user-info">
-        <span v-if="currentUser" class="welcome-text">
-          欢迎，{{ currentUser.username }} 
-          <button @click="logout" class="logout-btn">退出</button>
-        </span>
+  <div class="app-container">
+    <!-- 左侧侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>🎮 小助手</h1>
+      </div>
+      <nav class="sidebar-nav">
+        <button 
+          v-for="item in navItems" 
+          :key="item.page"
+          @click="currentPage = item.page; clearResults(); item.onClick && item.onClick()"
+          class="nav-btn"
+          :class="{ active: currentPage === item.page }"
+        >
+          <span class="nav-icon">{{ item.icon }}</span>
+          <span class="nav-text">{{ item.name }}</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <span v-if="currentUser" class="welcome-text">欢迎，{{ currentUser.username }}</span>
+        <button v-if="currentUser" @click="logout" class="logout-btn">退出</button>
         <button v-else @click="currentPage = 'login'" class="login-btn">登录/注册</button>
       </div>
-      <nav>
-        <button @click="currentPage = 'home'; clearResults()">首页</button>
-        <button @click="currentPage = 'chouka'; clearResults()">抽奖</button>
-        <button @click="currentPage = 'baodi'; clearResults()">保底查询</button>
-        <button @click="currentPage = 'scratch'; clearResults(); loadScratchStatus()">武器刮刮乐</button>
-      </nav>
-    </header>
+    </aside>
 
-    <main>
+    <!-- 右侧主内容区域 -->
+    <main class="main-content">
       <!-- 首页 -->
       <div v-if="currentPage === 'home'" class="home-page">
         <h2>欢迎使用小助手</h2>
@@ -422,53 +470,47 @@ onMounted(() => {
 
       <!-- 刮刮乐页面 -->
       <div v-if="currentPage === 'scratch'" class="scratch-page">
-        <h2>🎁 武器刮刮乐</h2>
+        <h2>每日商店</h2>
         
         <!-- 状态信息 -->
-        <div class="scratch-status">
-          <div class="status-item">
-            <span class="status-label">总卡片:</span>
-            <span class="status-value">{{ scratchStatus.total_cards }}</span>
-          </div>
-          <div class="status-item">
-            <span class="status-label">已刮:</span>
-            <span class="status-value">{{ scratchStatus.scratched_count }}</span>
-          </div>
-          <div class="status-item">
-            <span class="status-label">剩余:</span>
-            <span class="status-value highlight">{{ scratchStatus.remaining_cards }}</span>
-          </div>
+        <div class="scratch-status-bar">
+          <button @click="resetScratch" class="reset-btn">重新开始</button>
         </div>
         
-        <!-- 刮刮乐卡片 -->
-        <div class="scratch-card-container">
-          <div class="scratch-card" @click="doScratch" :class="{ disabled: scratchStatus.remaining_cards <= 0 }">
-            <div class="scratch-cover" v-if="!scratchResult">
-              <span class="scratch-text">🎯 点击刮开</span>
-            </div>
-            <div class="scratch-prize" v-else>
-              <div class="prize-rarity" :class="`rarity-${scratchResult.rarity}`">
-                {{ '*'.repeat(scratchResult.star || scratchResult.rarity) }}
+        <!-- 四个刮刮乐槽位 -->
+        <div class="scratch-slots-container">
+          <div 
+            v-for="(slot, index) in scratchSlots" 
+            :key="index"
+            class="scratch-slot"
+            :class="[
+              getRarityClass(slot?.star || 4),
+              { scratched: slot !== null, disabled: allScratched && slot === null }
+            ]"
+            @click="doScratch(index)"
+          >
+            <!-- 武器图片区域 -->
+            <div class="slot-image-area">
+              <div v-if="slot === null" class="slot-placeholder">
+                <div class="slot-animation">
+                  <span>🎯</span>
+                </div>
               </div>
-              <div class="prize-name">{{ scratchResult.name }}</div>
-              <div class="prize-type">{{ scratchResult.weapon_type }}</div>
-              <div v-if="scratchResult.image_id" class="prize-image">
-                <img :src="`https://example.com/weapons/${scratchResult.image_id}.png`" alt="武器图片" style="width: 80px; height: 80px; object-fit: contain;">
+              <div v-else class="slot-reveal-container">
+                <img :src="`http://localhost:8888${slot.image_url}`" 
+                     :alt="slot.name" class="slot-image slot-reveal" />
               </div>
             </div>
+            
+            <!-- 武器信息 -->
+            <div class="slot-info" :class="{ 'slot-reveal': slot !== null }">
+              <div class="slot-name">{{ slot?.name || '???' }}</div>
+              <div class="slot-type">{{ slot?.weapon_type || '点击刮开' }}</div>
+            </div>
           </div>
-        </div>
-        
-        <!-- 结果消息 -->
-        <div v-if="scratchMessage" :class="['message', scratchResult ? 'success' : 'error']">
-          {{ scratchMessage }}
-        </div>
-        
-        <!-- 重置按钮 -->
-        <div class="scratch-actions">
-          <button @click="resetScratch" class="btn-secondary">重新开始</button>
         </div>
       </div>
+        
     </main>
   </div>
 </template>
@@ -658,105 +700,460 @@ onMounted(() => {
 
 /* 刮刮乐页面样式 */
 .scratch-page {
-  max-width: 500px;
+  max-width: 1400px;
+  width: 100%;
   margin: 0 auto;
-  padding: 20px;
-}
-
-.scratch-status {
-  display: flex;
-  justify-content: center;
-  gap: 30px;
-  margin-bottom: 30px;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 10px;
-}
-
-.status-item {
-  text-align: center;
-}
-
-.status-label {
-  display: block;
-  font-size: 14px;
-  color: #666;
-}
-
-.status-value {
-  display: block;
-  font-size: 24px;
-  font-weight: bold;
-  color: #333;
-}
-
-.status-value.highlight {
-  color: #e74c3c;
-}
-
-.scratch-card-container {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.scratch-card {
-  width: 200px;
-  height: 250px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 15px;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-  transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.scratch-card:hover:not(.disabled) {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 40px rgba(0,0,0,0.3);
-}
-
-.scratch-card.disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.scratch-cover {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-}
-
-.scratch-text {
-  font-size: 20px;
-  font-weight: bold;
-  color: white;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-}
-
-.scratch-prize {
-  width: 100%;
-  height: 100%;
+  padding: 30px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: white;
-  padding: 20px;
 }
 
-.prize-rarity {
-  font-size: 36px;
-  font-weight: bold;
+.scratch-page h2 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #fff;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+/* 刮刮乐状态栏 */
+.scratch-status-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  padding: 14px 40px;
+  border-radius: 30px;
+  margin-bottom: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.reset-btn {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+.reset-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+}
+
+.reset-btn:active {
+  transform: translateY(0);
+}
+
+/* 四个刮刮乐槽位容器 */
+.scratch-slots-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+  width: 100%;
+}
+
+/* 单个槽位样式 - 扑克牌比例 5:7 */
+.scratch-slot {
+  background: linear-gradient(145deg, #1e1e2e 0%, #141420 100%);
+  border-radius: 22px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  aspect-ratio: 5 / 7;
+  min-width: 225px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.scratch-slot:hover:not(.disabled):not(.scratched) {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.scratch-slot.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.scratch-slot.scratched {
+  cursor: default;
+}
+
+/* 稀有度底色 - 刮开后显示 */
+.scratch-slot.rarity-legendary {
+  background: linear-gradient(145deg, #4a3728 0%, #2d1f14 100%);
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.scratch-slot.rarity-epic {
+  background: linear-gradient(145deg, #3d2d5a 0%, #2a1f3d 100%);
+  box-shadow: 0 0 30px rgba(153, 102, 255, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4);
+  border-color: rgba(153, 102, 255, 0.3);
+}
+
+.scratch-slot.rarity-rare {
+  background: linear-gradient(145deg, #2d4a6e 0%, #1f3452 100%);
+  box-shadow: 0 0 30px rgba(102, 179, 255, 0.2), 0 4px 20px rgba(0, 0, 0, 0.4);
+  border-color: rgba(102, 179, 255, 0.3);
+}
+
+.scratch-slot.rarity-common {
+  background: linear-gradient(145deg, #3d3d3d 0%, #2a2a2a 100%);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+  border-color: rgba(153, 153, 153, 0.2);
+}
+
+/* 槽位图片区域 */
+.slot-image-area {
+  width: 100%;
+  height: 70%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  position: relative;
+}
+
+.slot-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+}
+
+.slot-animation {
+  text-align: center;
+  animation: slotPulse 2s ease-in-out infinite;
+}
+
+.slot-animation span {
+  font-size: 44px;
+  opacity: 0.8;
+}
+
+@keyframes slotPulse {
+  0%, 100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.05);
+  }
+}
+
+/* 翻开动画容器 */
+.slot-reveal-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: revealBg 0.5s ease-out forwards;
+}
+
+/* 翻开动画 - 图片渐变出现 */
+.slot-image.slot-reveal {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  padding: 20px;
+  animation: revealImage 0.8s ease-out 0.4s forwards;
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+/* 翻开动画 - 信息渐变出现 */
+.slot-info.slot-reveal {
+  animation: revealInfo 0.7s ease-out 0.6s forwards;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* 底色渐变动画 */
+@keyframes revealBg {
+  0% {
+    background: rgba(0,0,0,0.5);
+  }
+  100% {
+    background: rgba(0,0,0,0.3);
+  }
+}
+
+/* 图片翻转动画 */
+@keyframes revealImage {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) rotateY(-180deg);
+    filter: brightness(0);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.95) rotateY(-90deg);
+    filter: brightness(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotateY(0);
+    filter: brightness(1);
+  }
+}
+
+/* 信息渐变动画 */
+@keyframes revealInfo {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 槽位信息 */
+.slot-info {
+  padding: 14px 14px 18px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.slot-name {
+  font-size: 21px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot-type {
+  font-size: 16px;
+  color: #999;
+}
+
+/* 全部刮完提示 */
+.scratch-complete {
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 15px;
+  margin-top: 20px;
+}
+
+.complete-icon {
+  font-size: 48px;
   margin-bottom: 10px;
 }
 
-.rarity-1 { color: #9e9e9e; }
-.rarity-2 { color: #4caf50; }
+.scratch-complete p {
+  color: #fff;
+  margin: 5px 0;
+}
+
+/* 旧样式兼容 */
+.store-card-container {
+  width: 100%;
+  max-width: 400px;
+  background: linear-gradient(135deg, #2d2d44 0%, #1a1a2e 100%);
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  position: relative;
+}
+
+/* 稀有度徽章 */
+.rarity-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.rarity-badge.rarity-legendary {
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+}
+
+.rarity-badge.rarity-epic {
+  background: linear-gradient(135deg, #9966ff 0%, #6633cc 100%);
+}
+
+.rarity-badge.rarity-rare {
+  background: linear-gradient(135deg, #66b3ff 0%, #3366cc 100%);
+}
+
+.rarity-badge.rarity-common {
+  background: linear-gradient(135deg, #999999 0%, #666666 100%);
+}
+
+.rarity-icon {
+  color: white;
+  font-size: 24px;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+}
+
+/* 武器图片区域 */
+.weapon-image-area {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.scratch-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+}
+
+.scratch-animation {
+  text-align: center;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.scratch-animation span {
+  color: #fff;
+  font-size: 24px;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.weapon-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  padding: 20px;
+}
+
+/* 武器信息 */
+.weapon-info {
+  padding: 15px 20px;
+  background: rgba(0,0,0,0.2);
+}
+
+.weapon-name {
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 5px;
+}
+
+.weapon-type {
+  font-size: 14px;
+  color: #999;
+}
+
+/* 已获得武器列表 */
+.weapon-collection {
+  margin-top: 30px;
+}
+
+.weapon-collection h3 {
+  color: #fff;
+  margin-bottom: 15px;
+  font-size: 18px;
+}
+
+.weapon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.collection-card {
+  background: linear-gradient(135deg, #2d2d44 0%, #1a1a2e 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+
+.collection-card:hover {
+  transform: translateY(-3px);
+}
+
+.collection-rarity {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+.collection-rarity.rarity-legendary {
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+}
+
+.collection-rarity.rarity-epic {
+  background: linear-gradient(135deg, #9966ff 0%, #6633cc 100%);
+}
+
+.collection-rarity.rarity-rare {
+  background: linear-gradient(135deg, #66b3ff 0%, #3366cc 100%);
+}
+
+.collection-rarity.rarity-common {
+  background: linear-gradient(135deg, #999999 0%, #666666 100%);
+}
+
+.collection-image {
+  width: 100%;
+  height: 100px;
+  object-fit: contain;
+  background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+  padding: 10px;
+}
+
+.collection-name {
+  padding: 10px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+.collection-type {
+  padding: 0 10px 10px;
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+}
 .rarity-3 { color: #2196f3; }
 .rarity-4 { color: #9c27b0; }
 .rarity-5 { color: #ff9800; }
@@ -845,34 +1242,127 @@ onMounted(() => {
 
 }
 
-.app {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
+/* 整体布局容器 */
+.app-container {
+  display: flex;
+  min-height: 100vh;
   font-family: Arial, sans-serif;
 }
 
-header {
-  text-align: center;
-  margin-bottom: 30px;
+/* 左侧侧边栏 */
+.sidebar {
+  width: 220px;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-nav {
-  margin-top: 20px;
+.sidebar-header {
+  padding: 0 20px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-nav button {
-  margin: 0 10px;
-  padding: 10px 20px;
+.sidebar-header h1 {
+  margin: 0;
+  font-size: 18px;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 侧边栏导航 */
+.sidebar-nav {
+  flex: 1;
+  padding: 15px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
+  background: transparent;
   border: none;
-  background: #007bff;
-  color: white;
+  border-radius: 10px;
   cursor: pointer;
-  border-radius: 5px;
+  color: #999;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  text-align: left;
 }
 
-nav button:hover {
-  background: #0056b3;
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.nav-btn.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%);
+  color: #fff;
+  border-left: 3px solid #6366f1;
+}
+
+.nav-icon {
+  font-size: 18px;
+}
+
+.nav-text {
+  font-weight: 500;
+}
+
+/* 侧边栏底部用户信息 */
+.sidebar-footer {
+  padding: 15px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-footer .welcome-text {
+  color: #999;
+  font-size: 13px;
+}
+
+.sidebar-footer .logout-btn,
+.sidebar-footer .login-btn {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.sidebar-footer .logout-btn {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.sidebar-footer .logout-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.sidebar-footer .login-btn {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #fff;
+}
+
+.sidebar-footer .login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+/* 右侧主内容区域 */
+.main-content {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto;
 }
 
 .form-group {

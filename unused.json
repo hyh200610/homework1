@@ -1,0 +1,16 @@
+{
+  "unused": [
+    {
+      "name": "应急手段",
+      "type": "单手剑",
+      "star": 4,
+      "image": "yingjishouduan.png"
+    },
+    {
+      "name": "镀红祝福",
+      "type": "长柄武器",
+      "star": 6,
+      "image": "duhongzhufu.png"
+    }
+  ]
+}

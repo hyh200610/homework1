@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from chouka import chouka
 from weapon import AllWeaponManager
 import uvicorn
@@ -9,6 +10,10 @@ import os
 
 
 app = FastAPI(title="小助手API", version="1.0.0")
+
+# 挂载静态文件目录 - 用于前端访问武器图片
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # 添加CORS中间件，允许前端访问
 app.add_middleware(
@@ -270,13 +275,17 @@ def scratch_play():
         
         remaining_after = len(weapons_data) - sum(len(pool.static_used) for pool in weapon_manager.pools.values())
         
+        # 构建图片URL
+        image_url = f"/static/images/weapons/{weapon.image_id}.png" if weapon.image_id else None
+        
         return success_response({
             "prize": {
                 "name": weapon.name,
                 "weapon_type": weapon.type,
                 "rarity": str(weapon.star),
                 "star": weapon.star,
-                "image_id": weapon.image_id
+                "image_id": weapon.image_id,
+                "image_url": image_url
             },
             "remaining_cards": remaining_after
         }, f"恭喜获得: {weapon.name}")
