@@ -1,0 +1,253 @@
+/* 全屏抽卡展示 - 全局样式 */
+.chouka-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.overlay-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* 单抽展示 */
+.single-pull {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.single-card-container {
+  position: relative;
+  width: 480px;
+  height: 720px;
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 0 80px rgba(255, 215, 0, 0.3);
+}
+
+.single-card-container.rarity-legendary {
+  background: linear-gradient(135deg, #1a1a2e 0%, #ff4444 40%, #cc0000 60%, #1a1a2e 100%);
+  box-shadow: 0 0 100px rgba(255, 68, 68, 0.6);
+}
+
+.single-card-container.rarity-epic {
+  background: linear-gradient(135deg, #1a1a2e 0%, #ffd700 40%, #ffaa00 60%, #1a1a2e 100%);
+  box-shadow: 0 0 100px rgba(255, 215, 0, 0.6);
+}
+
+.single-card-container.rarity-rare {
+  background: linear-gradient(135deg, #1a1a2e 0%, #9966ff 40%, #6633cc 60%, #1a1a2e 100%);
+  box-shadow: 0 0 100px rgba(153, 102, 255, 0.6);
+}
+
+.single-card-container.rarity-common {
+  background: linear-gradient(135deg, #1a1a2e 0%, #999999 40%, #666666 60%, #1a1a2e 100%);
+  box-shadow: 0 0 100px rgba(153, 153, 153, 0.5);
+}
+
+.single-card {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-bg-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(0,0,0,0.3) 100%);
+  pointer-events: none;
+}
+
+.single-character-img {
+  width: 400px;
+  height: 550px;
+  object-fit: contain;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 1s ease;
+  filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.5));
+}
+
+.single-character-img.fade-in {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.single-card-info {
+  position: absolute;
+  bottom: 20px;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.8s ease;
+  transition-delay: 0.5s;
+}
+
+.single-card-info.slide-up {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.single-card-star {
+  font-size: 24px;
+  color: #ffd700;
+  text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+  margin-bottom: 8px;
+}
+
+.single-card-name {
+  font-size: 22px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+/* 十连抽展示 - 2行5列网格布局 */
+.chouka-overlay .multi-pull {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.chouka-overlay .multi-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 15px;
+  width: 100%;
+  max-width: 1200px;
+  height: 90vh;
+  padding: 20px;
+}
+
+.chouka-overlay .multi-card-item {
+  opacity: 0;
+  transform: translateY(30px);
+  animation: fadeInUp 0.6s ease forwards;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 十连抽卡片样式 */
+.chouka-overlay .multi-card-item .single-card-container {
+  width: 100%;
+  max-width: 230px;
+  height: 100%;
+  max-height: 380px;
+  aspect-ratio: 3/5;
+}
+
+.chouka-overlay .multi-card-item .single-card {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.chouka-overlay .multi-character-img {
+  width: 85%;
+  height: 75%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.6));
+  z-index: 3;
+  position: relative;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.8s ease;
+}
+
+.chouka-overlay .multi-character-img.fade-in {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.chouka-overlay .multi-card-info {
+  position: absolute;
+  bottom: 10px;
+  text-align: center;
+  z-index: 4;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.6s ease;
+}
+
+.chouka-overlay .multi-card-info.slide-up {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.chouka-overlay .multi-card-star {
+  font-size: 12px;
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.8);
+  margin-bottom: 3px;
+}
+
+.chouka-overlay .multi-card-name {
+  font-size: 10px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.6);
+}
+
+/* 关闭提示 */
+.close-hint {
+  position: absolute;
+  bottom: 30px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.close-hint.show {
+  opacity: 1;
+}

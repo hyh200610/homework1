@@ -38,9 +38,6 @@ for weapon in weapon_manager.all_weapon_list:
         "image_id": weapon.image_id
     }
 
-# 存储当前四个刮刮乐卡片
-current_cards = []
-
 # ==================== 统一响应格式 ====================
 def success_response(data=None, message="操作成功"):
     """成功响应格式"""
@@ -226,9 +223,9 @@ def chouka_do(times: int = Form(...), username: str = Form(None)):
         # 统计结果
         stats = {
             "total": times,
-            "star_6": sum(1 for item in result if "******" in item),
-            "star_5": sum(1 for item in result if "*****" in item and "******" not in item),
-            "star_4": sum(1 for item in result if "****" in item and "*****" not in item)
+            "star_6": sum(1 for item in result if item.get("star") == 6),
+            "star_5": sum(1 for item in result if item.get("star") == 5),
+            "star_4": sum(1 for item in result if item.get("star") == 4)
         }
         
         return success_response({
@@ -256,7 +253,7 @@ def get_scratch_status():
         "total_cards": total_cards,
         "remaining_cards": remaining_cards,
         "scratched_count": used_cards,
-        "current_cards_count": len(current_cards)
+        "current_cards_count": 0
     })
 
 @app.post("/api/scratch/play", summary="刮一张卡片")
@@ -302,82 +299,6 @@ def scratch_reset():
         return success_response({
             "total_cards": len(weapons_data)
         }, "刮刮乐已重置")
-        
-    except Exception as e:
-        return error_response(500, f"重置失败: {str(e)}")
-
-# ==================== 新版四个刮刮乐 API ====================
-@app.post("/api/scratch/new/init", summary="初始化四个刮刮乐卡片")
-def init_new_scratch():
-    """初始化四个刮刮乐卡片"""
-    try:
-        global current_cards
-        
-        # 检查是否还有足够的卡片
-        remaining = len(weapons_data) - sum(len(pool.static_used) for pool in weapon_manager.pools.values())
-        if remaining < 4:
-            return error_response(400, f"剩余卡片不足4张，仅剩{remaining}张！")
-        
-        # 生成四个随机武器
-        current_cards = []
-        for _ in range(4):
-            weapon = weapon_manager.random_get_all_type_weapon()
-            if not weapon:
-                return error_response(400, "生成卡片失败，没有剩余卡片了！")
-            current_cards.append({
-                "id": _ + 1,
-                "name": weapon.name,
-                "weapon_type": weapon.type,
-                "rarity": str(weapon.star),
-                "star": weapon.star,
-                "image_id": weapon.image_id,
-                "revealed": False
-            })
-        
-        return success_response({
-            "cards": current_cards
-        }, "四个刮刮乐卡片已准备就绪！")
-        
-    except Exception as e:
-        return error_response(500, f"初始化失败: {str(e)}")
-
-@app.post("/api/scratch/new/reveal/{card_id}", summary="揭开指定卡片")
-def reveal_card(card_id: int):
-    """揭开指定ID的卡片"""
-    try:
-        global current_cards
-        
-        if not current_cards:
-            return error_response(400, "请先初始化刮刮乐卡片！")
-        
-        if card_id < 1 or card_id > 4:
-            return error_response(400, "无效的卡片ID！")
-        
-        card = current_cards[card_id - 1]
-        if card["revealed"]:
-            return error_response(400, "该卡片已被揭开！")
-        
-        card["revealed"] = True
-        
-        return success_response({
-            "card": card,
-            "all_revealed": all(c["revealed"] for c in current_cards)
-        }, f"揭开卡片{card_id}：{card['name']}")
-        
-    except Exception as e:
-        return error_response(500, f"揭开卡片失败: {str(e)}")
-
-@app.post("/api/scratch/new/reset", summary="完全重置刮刮乐")
-def reset_new_scratch():
-    """完全重置刮刮乐系统"""
-    try:
-        global current_cards
-        weapon_manager.reset_all_pool()
-        current_cards = []
-        
-        return success_response({
-            "total_cards": len(weapons_data)
-        }, "刮刮乐已完全重置")
         
     except Exception as e:
         return error_response(500, f"重置失败: {str(e)}")

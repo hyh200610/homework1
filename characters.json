@@ -1,0 +1,35 @@
+{
+    "charpool_6": [
+        {"name": "庄方宜", "star": 6, "image": "庄方宜.webp"},
+        {"name": "汤汤", "star": 6, "image": "汤汤.webp"},
+        {"name": "洛茜", "star": 6, "image": "洛茜.webp"},
+        {"name": "余烬", "star": 6, "image": "余烬.webp"},
+        {"name": "别礼", "star": 6, "image": "别礼.webp"},
+        {"name": "艾尔黛拉", "star": 6, "image": "艾尔黛拉.webp"},
+        {"name": "骏卫", "star": 6, "image": "骏卫.webp"},
+        {"name": "黎风", "star": 6, "image": "黎风.webp"},
+        {"name": "卡缪", "star": 6, "image": "卡缪.webp"},
+        {"name": "洁尔佩塔", "star": 6, "image": "洁尔佩塔.webp"},
+        {"name": "莱万汀", "star": 6, "image": "莱万汀.webp"},
+        {"name": "弭弗", "star": 6, "image": "弭弗.webp"},
+        {"name": "伊冯", "star": 6, "image": "伊冯.webp"}
+    ],
+    "charpool_5": [
+        {"name": "佩丽卡", "star": 5, "image": "佩丽卡.webp"},
+        {"name": "大潘", "star": 5, "image": "大潘.webp"},
+        {"name": "弧光", "star": 5, "image": "弧光.webp"},
+        {"name": "昼雪", "star": 5, "image": "昼雪.webp"},
+        {"name": "狼卫", "star": 5, "image": "狼卫.webp"},
+        {"name": "艾维文娜", "star": 5, "image": "艾维文娜.webp"},
+        {"name": "赛希", "star": 5, "image": "赛希.webp"},
+        {"name": "阿列什", "star": 5, "image": "阿列什.webp"},
+        {"name": "陈千语", "star": 5, "image": "陈千语.webp"}
+    ],
+    "charpool_4": [
+        {"name": "卡契尔", "star": 4, "image": "卡契尔.webp"},
+        {"name": "埃特拉", "star": 4, "image": "埃特拉.webp"},
+        {"name": "安塔尔", "star": 4, "image": "安塔尔.webp"},
+        {"name": "秋栗", "star": 4, "image": "秋栗.webp"},
+        {"name": "萤石", "star": 4, "image": "萤石.webp"}
+    ]
+}

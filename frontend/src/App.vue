@@ -38,19 +38,26 @@ const scratchSlots = ref([null, null, null, null])  // 四个刮刮乐槽位
 const allScratched = ref(false)  // 是否全部刮完
 
 // 当前页面状态
-const currentPage = ref('home')
+const currentPage = ref('chouka')
 
 // 导航项目
 const navItems = ref([
-  { name: '首页', icon: '🏠', page: 'home' },
   { name: '抽奖', icon: '🎰', page: 'chouka' },
-  { name: '保底查询', icon: '📊', page: 'baodi' },
   { name: '武器刮刮乐', icon: '🎁', page: 'scratch', onClick: loadScratchStatus }
 ])
 
 // 登录状态
 const loginMessage = ref('')
 const isLoginSuccess = ref(false)
+
+// 抽奖消息
+const choukaMessage = ref('')
+
+// 全屏抽卡展示状态
+const showChoukaOverlay = ref(false)
+const showSingleCard = ref(false)
+const showCloseHint = ref(false)
+const showMultiCards = ref([])
 
 
 
@@ -78,7 +85,7 @@ async function doChouka() {
     if (result.success) {
       choukaResult.value = result.data.results
       choukaStats.value = result.data.statistics
-      loginMessage.value = result.message
+      choukaMessage.value = result.message
       
       // 更新保底信息
       if (result.data.baodi_info) {
@@ -87,6 +94,31 @@ async function doChouka() {
           dabaodi: result.data.baodi_info.current_dabaodi
         }
       }
+      
+      // 显示全屏抽卡展示
+      showChoukaOverlay.value = true
+      showSingleCard.value = false
+      showCloseHint.value = false
+      showMultiCards.value = []
+      
+      // 单抽动画延迟
+      if (choukaForm.value.times === 1) {
+        setTimeout(() => {
+          showSingleCard.value = true
+        }, 500)
+      } else {
+        // 十连抽动画 - 逐个显示卡片
+        result.data.results.forEach((_, index) => {
+          setTimeout(() => {
+            showMultiCards.value[index] = true
+          }, index * 150 + 300)
+        })
+      }
+      
+      // 显示关闭提示
+      setTimeout(() => {
+        showCloseHint.value = true
+      }, 2000)
     } else {
       loginMessage.value = result.message
       choukaResult.value = []
@@ -99,10 +131,18 @@ async function doChouka() {
   }
 }
 
+// 关闭全屏抽卡展示
+function closeChoukaOverlay() {
+  showChoukaOverlay.value = false
+  showSingleCard.value = false
+  showCloseHint.value = false
+}
+
 // 清空结果函数
 function clearResults() {
   choukaResult.value = []
   choukaStats.value = null
+  choukaMessage.value = ''
   scratchMessage.value = ''
 }
 
@@ -316,10 +356,17 @@ async function resetScratch() {
 // 获取稀有度样式类
 function getRarityClass(star) {
   const starNum = parseInt(star) || 4
-  if (starNum >= 6) return 'rarity-legendary'
-  if (starNum === 5) return 'rarity-epic'
-  if (starNum === 4) return 'rarity-rare'
-  return 'rarity-common'
+  if (starNum >= 6) return 'legendary'
+  if (starNum === 5) return 'epic'
+  if (starNum === 4) return 'rare'
+  return 'common'
+}
+
+// 计算6星概率
+function getStar6Probability() {
+  const baseProb = 0.8
+  const bonus = Math.max(0, baodiInfo.value.dabaodi - 65) * 5
+  return Math.min(baseProb + bonus, 100)
 }
 
 // 组件挂载时检查用户状态
@@ -351,31 +398,12 @@ onMounted(() => {
       <div class="sidebar-footer">
         <span v-if="currentUser" class="welcome-text">欢迎，{{ currentUser.username }}</span>
         <button v-if="currentUser" @click="logout" class="logout-btn">退出</button>
-        <button v-else @click="currentPage = 'login'" class="login-btn">登录/注册</button>
+        <button v-else @click="currentPage = 'login'; clearResults()" class="login-btn">登录/注册</button>
       </div>
     </aside>
 
     <!-- 右侧主内容区域 -->
     <main class="main-content">
-      <!-- 首页 -->
-      <div v-if="currentPage === 'home'" class="home-page">
-        <h2>欢迎使用小助手</h2>
-        <p v-if="!currentUser">请先登录以使用完整功能</p>
-        <div v-if="currentUser" class="baodi-card">
-          <h3>当前保底状态</h3>
-          <div class="baodi-stats">
-            <div class="stat-item">
-              <span class="stat-label">保底计数:</span>
-              <span class="stat-value">{{ baodiInfo.baodi }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">大保底计数:</span>
-              <span class="stat-value">{{ baodiInfo.dabaodi }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- 登录/注册页面 -->
       <div v-if="currentPage === 'login'" class="login-page">
         <h2>登录 / 注册</h2>
@@ -406,65 +434,106 @@ onMounted(() => {
         <div v-if="!currentUser" class="login-prompt">
           <p>💡 请先登录以记录保底次数</p>
         </div>
+        <!-- 保底信息显示 -->
+        <div v-if="currentUser" class="baodi-display">
+          <div class="baodi-item">
+            <span class="baodi-label">保底:</span>
+            <span class="baodi-value">{{ baodiInfo.baodi }}/10</span>
+            <div class="baodi-progress">
+              <div class="baodi-bar" :style="{ width: `${(baodiInfo.baodi / 10) * 100}%` }"></div>
+            </div>
+          </div>
+          <div class="baodi-item">
+            <span class="baodi-label">大保底:</span>
+            <span class="baodi-value">{{ baodiInfo.dabaodi }}/80</span>
+            <div class="baodi-progress">
+              <div class="baodi-bar dabaodi" :style="{ width: `${(baodiInfo.dabaodi / 80) * 100}%` }"></div>
+            </div>
+          </div>
+          <div class="baodi-item">
+            <span class="baodi-label">6星概率:</span>
+            <span class="baodi-value" :class="{ 'high-prob': getStar6Probability() > 0.8 }">{{ getStar6Probability().toFixed(1) }}%</span>
+            <div class="probability-hint">
+              <span v-if="baodiInfo.dabaodi >= 65" class="hint-text">🔥 概率提升中</span>
+              <span v-else class="hint-text">剩余 {{ 65 - baodiInfo.dabaodi }} 抽开始提升</span>
+            </div>
+          </div>
+        </div>
         <form @submit.prevent="doChouka">
-          <div class="form-group">
-            <label>抽奖次数：</label>
-            <input v-model="choukaForm.times" type="number" min="1" max="100" required>
+          <div class="chouka-buttons">
+            <button 
+              type="button" 
+              @click="choukaForm.times = 1; doChouka()"
+              class="chouka-btn single"
+            >
+              <span class="btn-icon">🎯</span>
+              <span class="btn-text">单抽</span>
+              <span class="btn-cost">消耗 1 抽</span>
+            </button>
+            <button 
+              type="button" 
+              @click="choukaForm.times = 10; doChouka()"
+              class="chouka-btn multi"
+            >
+              <span class="btn-icon">🎰</span>
+              <span class="btn-text">十连抽</span>
+              <span class="btn-cost">消耗 10 抽</span>
+            </button>
           </div>
-          <button type="submit">开始抽奖</button>
         </form>
-        
-        <!-- 抽奖统计 -->
-        <div v-if="choukaStats" class="chouka-stats">
-          <div class="stats-grid">
-            <div class="stat-card star-6">
-              <div class="stat-number">{{ choukaStats.star_6 }}</div>
-              <div class="stat-label">6星物品</div>
-            </div>
-            <div class="stat-card star-5">
-              <div class="stat-number">{{ choukaStats.star_5 }}</div>
-              <div class="stat-label">5星物品</div>
-            </div>
-            <div class="stat-card star-4">
-              <div class="stat-number">{{ choukaStats.star_4 }}</div>
-              <div class="stat-label">4星物品</div>
-            </div>
-            <div class="stat-card total">
-              <div class="stat-number">{{ choukaStats.total }}</div>
-              <div class="stat-label">总抽奖次数</div>
-            </div>
-          </div>
-        </div>
-        
-        <div v-if="choukaResult.length > 0" class="result">
-          <h3>抽奖结果：</h3>
-          <div v-for="(item, index) in choukaResult" :key="index" class="chouka-item">
-            <span v-if="item.includes('******')" class="star-6">{{ item }}</span>
-            <span v-else-if="item.includes('*****')" class="star-5">{{ item }}</span>
-            <span v-else class="star-4">{{ item }}</span>
-          </div>
-        </div>
       </div>
 
-      <!-- 保底查询页面 -->
-      <div v-if="currentPage === 'baodi'" class="baodi-page">
-        <h2>保底查询</h2>
-        <div v-if="!currentUser" class="login-prompt">
-          <p>请先登录以查询保底信息</p>
-        </div>
-        <div v-else class="baodi-card">
-          <h3>当前保底状态</h3>
-          <div class="baodi-stats">
-            <div class="stat-item">
-              <span class="stat-label">保底计数:</span>
-              <span class="stat-value">{{ baodiInfo.baodi }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">大保底计数:</span>
-              <span class="stat-value">{{ baodiInfo.dabaodi }}</span>
+      <!-- 全屏抽卡结果展示 -->
+      <div v-if="showChoukaOverlay" class="chouka-overlay" @click="closeChoukaOverlay">
+        <div class="overlay-content">
+          <!-- 单抽展示 -->
+          <div v-if="choukaResult.length === 1" class="single-pull">
+            <div class="single-card-container" :class="`rarity-${getRarityClass(choukaResult[0].star)}`">
+              <div class="single-card">
+                <div class="card-bg-gradient"></div>
+                <img 
+                  :src="choukaResult[0].image_url" 
+                  :alt="choukaResult[0].name" 
+                  class="single-character-img"
+                  :class="{ 'fade-in': showSingleCard }"
+                />
+                <div class="single-card-info" :class="{ 'slide-up': showSingleCard }">
+                  <div class="single-card-star">{{ '★'.repeat(choukaResult[0].star) }}</div>
+                  <div class="single-card-name">{{ choukaResult[0].name }}</div>
+                </div>
+              </div>
             </div>
           </div>
-          <button @click="loadBaodiInfo" class="refresh-btn">刷新保底信息</button>
+
+          <!-- 十连抽展示 - 2行5列网格布局 -->
+          <div v-else class="multi-pull">
+            <div class="multi-cards-grid">
+              <div 
+                v-for="(item, index) in choukaResult" 
+                :key="index" 
+                class="multi-card-item"
+                :style="{ animationDelay: `${index * 0.1}s` }"
+              >
+                <div class="single-card-container" :class="`rarity-${getRarityClass(item.star)}`">
+                  <div class="single-card">
+                    <div class="card-bg-gradient"></div>
+                    <img 
+                      :src="item.image_url" 
+                      :alt="item.name" 
+                      class="multi-character-img"
+                      :class="{ 'fade-in': showMultiCards[index] }"
+                    />
+                    <div class="multi-card-info" :class="{ 'slide-up': showMultiCards[index] }">
+                      <div class="multi-card-star">{{ '★'.repeat(item.star) }}</div>
+                      <div class="multi-card-name">{{ item.name }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="close-hint" :class="{ 'show': showCloseHint }">点击任意处关闭</div>
         </div>
       </div>
 
@@ -484,7 +553,7 @@ onMounted(() => {
             :key="index"
             class="scratch-slot"
             :class="[
-              getRarityClass(slot?.star || 4),
+              `rarity-${getRarityClass(slot?.star || 4)}`,
               { scratched: slot !== null, disabled: allScratched && slot === null }
             ]"
             @click="doScratch(index)"
@@ -1217,10 +1286,215 @@ onMounted(() => {
   margin-bottom: 5px;
 }
 
+/* 抽奖结果区域 */
+.chouka-results {
+  margin-top: 30px;
+}
+
+.chouka-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.chouka-card {
+  aspect-ratio: 3/4;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.chouka-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+.chouka-card.rarity-legendary {
+  background: linear-gradient(135deg, #1a1a2e 0%, #ffd700 20%, #1a1a2e 100%);
+  border: 2px solid rgba(255, 215, 0, 0.5);
+}
+
+.chouka-card.rarity-epic {
+  background: linear-gradient(135deg, #1a1a2e 0%, #9966ff 20%, #1a1a2e 100%);
+  border: 2px solid rgba(153, 102, 255, 0.5);
+}
+
+.chouka-card.rarity-rare {
+  background: linear-gradient(135deg, #1a1a2e 0%, #66b3ff 20%, #1a1a2e 100%);
+  border: 2px solid rgba(102, 179, 255, 0.5);
+}
+
+.chouka-card.rarity-common {
+  background: linear-gradient(135deg, #1a1a2e 0%, #999999 20%, #1a1a2e 100%);
+  border: 2px solid rgba(153, 153, 153, 0.5);
+}
+
+.card-image {
+  width: 100%;
+  height: 65%;
+  background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+
+.character-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+.card-info {
+  padding: 10px;
+  text-align: center;
+}
+
+.card-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.8);
+  margin-bottom: 5px;
+}
+
+.card-star {
+  font-size: 16px;
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+}
+
 .stat-label {
   font-size: 14px;
   opacity: 0.9;
 }
+
+/* 保底信息显示样式 */
+.baodi-display {
+  display: flex;
+  gap: 30px;
+  justify-content: center;
+  margin-top: 20px;
+  padding: 15px 25px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+.baodi-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.baodi-label {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.baodi-value {
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.baodi-progress {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.baodi-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ffd700, #ff8c00);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.baodi-bar.dabaodi {
+  background: linear-gradient(90deg, #ff6b6b, #ee5a6f);
+}
+
+.baodi-value.high-prob {
+  color: #ff6b6b;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.probability-hint {
+  margin-top: 4px;
+}
+
+.hint-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* 抽奖按钮样式 */
+.chouka-buttons {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.chouka-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 40px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  min-width: 150px;
+}
+
+.chouka-btn:hover {
+  transform: translateY(-5px);
+}
+
+.chouka-btn.single {
+  background: linear-gradient(135deg, #4a90d9 0%, #357abd 100%);
+  box-shadow: 0 4px 15px rgba(74, 144, 217, 0.4);
+}
+
+.chouka-btn.multi {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+}
+
+.btn-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.btn-text {
+  font-size: 20px;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 4px;
+}
+
+.btn-cost {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+
 
 /* 响应式调整 */
 @media (max-width: 768px) {
@@ -1239,7 +1513,30 @@ onMounted(() => {
     flex-direction: column;
   }
   
-
+  .chouka-buttons {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .single-card-container {
+    width: 250px;
+    height: 380px;
+  }
+  
+  .single-character-img {
+    width: 180px;
+    height: 270px;
+  }
+  
+  .multi-card {
+    width: 70px;
+    height: 140px;
+  }
+  
+  .multi-character-img {
+    width: 50px;
+    height: 80px;
+  }
 }
 
 /* 整体布局容器 */
@@ -1247,6 +1544,7 @@ onMounted(() => {
   display: flex;
   min-height: 100vh;
   font-family: Arial, sans-serif;
+  background-color: #000000;
 }
 
 /* 左侧侧边栏 */
@@ -1363,6 +1661,7 @@ onMounted(() => {
   flex: 1;
   padding: 30px;
   overflow-y: auto;
+  background-color: #000000;
 }
 
 .form-group {
