@@ -3,15 +3,5 @@
         "password": "123456",
         "baodi": 4,
         "dabaodi": 4
-    },
-    "test1": {
-        "password": "111",
-        "baodi": 9,
-        "dabaodi": 21
-    },
-    "ted": {
-        "password": "123",
-        "baodi": 8,
-        "dabaodi": 30
     }
 }
